@@ -1,12 +1,44 @@
 <html>
 
+<style>
+    input[type="range"] {
+        -webkit-appearance: none;
+        width: 15%;
+        height: 15px;
+        border-radius: 10px;
+        background: grey;
+        outline: none;
+        opacity: 0.7;
+        -webkit-transition: .2s;
+        transition: opacity .2s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        background: rgb(31, 147, 242);
+        cursor: pointer;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        background: rgb(31, 147, 242);
+        cursor: pointer;
+    }
+</style>
+
 <head>
     <script src="https://cdn.jsdelivr.net/npm/p5@1.9.3/lib/p5.js"></script>
     <script src="dsp.js"></script>
     <script src="sketch.js"></script>
 </head>
 
-<body style="text-align: center; background-color: #2d2d2d;">
+<body style="background-color: #2d2d2d;">
     <br>
     <div id="sketch-container"></div>
 </body>
