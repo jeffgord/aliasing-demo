@@ -1,11 +1,13 @@
-let freqSlider, sampleRateSlider;
+let sampleRateSlider;
+let inputFreq = 100; // 100 Hz
+let freqLabel, sampleRateLabel, detectedFreqLabel, samplesPerPeriodLabel;
 let displayRatio = 20000; // each pixel represents a small fraction of time
-let sampleStrokeWeight = 9;
+let sampleStrokeWeight = 10;
 let inputColor, reconstructionColor;
 
 function setup() {
     let mainCanvas = createCanvas(1000, 600);
-    mainCanvas.position((windowWidth - width) / 2, (windowHeight - height) / 2);
+    mainCanvas.position((windowWidth - width) / 2, (windowHeight - height) * 0.7);
 
     renderSliderSection();
 
@@ -17,14 +19,30 @@ function setup() {
 }
 
 function renderSliderSection() {
-    freqSlider = createSlider(50, 400);
-    sampleRateSlider = createSlider(500, 800, 800);
+    sampleRateSlider = createSlider(0, 1000, 1000);
 
-    freqSlider.position((windowWidth - width) / 2 + width * 0.1, 40);
-    sampleRateSlider.position((windowWidth - width) / 2 + width * 0.5, 40);
+    let sliderX = windowWidth / 2 - sampleRateSlider.width / 2;
+    let sliderY = (windowHeight - height) / 2 + 25;
 
-    freqSlider.input(sketch);
+    sampleRateSlider.position(sliderX, sliderY);
+
     sampleRateSlider.input(sketch);
+
+    sampleRateLabel = createElement('p');
+    sampleRateLabel.position(sliderX, sliderY - 50);
+    sampleRateLabel.style('width', sampleRateSlider.width);
+
+    samplesPerPeriodLabel = createElement('p');
+    samplesPerPeriodLabel.position(sliderX, sliderY + 20);
+    samplesPerPeriodLabel.style('width', sampleRateSlider.width);
+}
+
+// This is used to curve the values of the slider to be more concentrated towards the low end
+// The formula is essentially this: minDesiredValue * e ^ (sliderValue * ln(maxDesiredValue / minDesiredValue) / maxSliderValue)
+// Note that this assumes the slider starts at 0
+// I have simplified the computation a bit here (by plugging in values) to get this function
+function getSampleRate() {
+    return Math.floor(50 * Math.pow(20, sampleRateSlider.value() / 1000));
 }
 
 function sketch() {
@@ -37,27 +55,26 @@ function sketch() {
     drawInput();
 
     let samples = computeSamples();
-    let fft = new FFT(samples.length, sampleRateSlider.value());
+    let fft = new FFT(samples.length, getSampleRate());
     fft.forward(samples);
     let reconstructedFreq = computeFreqFromSpectrum(fft.spectrum);
 
     drawReconstruction(reconstructedFreq);
     drawSamples(samples);
-    drawInfo(reconstructedFreq);
-    drawLegend();
+    renderInfo();
+    drawLegend(reconstructedFreq);
 }
 
 function drawAxis() {
     strokeWeight(1);
     stroke('grey');
     line(0, 0, width, 0);
-    line(0, height / 2, 0, - height / 2); // todo: remove this axis probably - it looks kinda bad
 }
 
 function drawInput() {
     strokeWeight(3);
     stroke(inputColor);
-    drawSineWave(freqSlider.value(), 0);
+    drawSineWave(inputFreq, 0);
 }
 
 function drawSineWave(frequency, phase) {
@@ -81,8 +98,8 @@ function computeSamples() {
 
     // compute enough samples for FFT
     for (let samp = 0; samp < 1024; samp++) {
-        t = samp / sampleRateSlider.value();
-        samples.push(sampleSine(t, freqSlider.value(), 0));
+        t = samp / getSampleRate();
+        samples.push(sampleSine(t, inputFreq, 0));
     }
 
     return samples;
@@ -93,7 +110,7 @@ function drawSamples(samples) {
     strokeWeight(sampleStrokeWeight);
 
     for (let samp = 0; samp < samples.length; samp++) {
-        t = samp * 1 / sampleRateSlider.value();
+        t = samp * 1 / getSampleRate();
         x = t * displayRatio;
         point(x, samples[samp]);
     }
@@ -111,11 +128,11 @@ function computeFreqFromSpectrum(spectrum) {
     }
 
     if (maxSamp === 0) return 0;
-    if (maxSamp === spectrum.length - 1) return freqSlider.value();
+    if (maxSamp === spectrum.length - 1) return inputFreq;
 
     // parabolic interpolation
     center = maxSamp + 0.5 * (spectrum[maxSamp - 1] - spectrum[maxSamp + 1]) / (spectrum[maxSamp - 1] - 2 * spectrum[maxSamp] + spectrum[maxSamp + 1]);
-    let frequency = sampleRateSlider.value() * center / (2 * spectrum.length);
+    let frequency = getSampleRate() * center / (2 * spectrum.length);
     return Math.round(frequency);
 }
 
@@ -123,23 +140,18 @@ function drawReconstruction(frequency) {
     strokeWeight(3);
     stroke(reconstructionColor);
 
-    let phase = Math.floor(freqSlider.value() / (0.5 * sampleRateSlider.value())) * Math.PI;
-    if (frequency === freqSlider.value()) phase = 0; // need correction for when detected frequency is exactly 
+    let phase = Math.floor(inputFreq / (0.5 * getSampleRate())) * Math.PI;
+    if (frequency === inputFreq) phase = 0; // need correction for when detected frequency is exactly input
 
     drawSineWave(frequency, phase);
 }
 
-function drawInfo(detectedFrequency) {
-    strokeWeight(0);
-    fill(255);
-    textSize(15);
-    textFont('Helvetica');
-    textAlign(LEFT, CENTER);
-    text(`Samples per period: ${(sampleRateSlider.value() / freqSlider.value()).toFixed(2)}`, width * 0.1, height * 0.4)
-    text(`Detected frequency: ${detectedFrequency} Hz`, width * 0.1, height * 0.4 + 20);
+function renderInfo() {
+    sampleRateLabel.html(`Sample Rate: ${getSampleRate()} Hz`);
+    samplesPerPeriodLabel.html(`Samples Per Period: ${(getSampleRate() / inputFreq).toFixed(2)}`);
 }
 
-function drawLegend() {
+function drawLegend(detectedFrequency) {
     stroke('white');
     strokeWeight(sampleStrokeWeight);
     point(width * 0.9 + 5, height * 0.4);
@@ -148,17 +160,17 @@ function drawLegend() {
     fill(255);
     textAlign(LEFT, CENTER);
     textSize(15);
-    textFont('Helvetica');
+    textFont('Trebuchet MS');
 
     text('Sample', width * 0.9 + 20, height * 0.4);
-    text('Input Signal', width * 0.5 + 55, height * 0.4);
-    text('Reconstructed Signal', width * 0.7 + 25, height * 0.4);
+    text(`Input Signal (${inputFreq} Hz)`, width * 0.4 + 25, height * 0.4);
+    text(`Reconstructed Signal (${detectedFrequency} Hz)`, width * 0.6 + 55, height * 0.4);
 
     textFont('Courier New');
     textSize(80);
     fill(inputColor);
-    text('~', width * 0.5, height * 0.4 + 2);
+    text('~', width * 0.4 - 30, height * 0.4 + 2);
 
     fill(reconstructionColor);
-    text('~', width * 0.7 - 30, height * 0.4 + 2);
+    text('~', width * 0.6, height * 0.4 + 2);
 }
